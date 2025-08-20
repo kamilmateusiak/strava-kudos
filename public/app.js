@@ -75,7 +75,7 @@ class KudosDashboard {
         document.getElementById('uniquePeople').textContent = uniquePeople.size;
 
         // Calculate most active kudoers
-        this.renderMostActiveKudoers(data.activities);
+        this.renderMostActiveKudoers(data.activities, data.patterns);
 
         // Render activities
         this.renderActivities(data.activities);
@@ -86,47 +86,31 @@ class KudosDashboard {
         document.getElementById('activityList').classList.remove('hidden');
     }
 
-    renderMostActiveKudoers(activities) {
-        // Get the last 5 activities to check if someone gave kudos recently
+    renderMostActiveKudoers(activities, patterns) {
+        // Only consider the last 5 activities for "most active kudoers"
         const recentActivities = activities.slice(0, 5);
         
-        // Get all 10 activities to count total kudos for ranking
-        const allActivities = activities;
-        
-        // First, find people who gave kudos in the last 5 activities
-        const recentKudoers = new Set();
+        // Count kudoer frequency across recent activities only
+        const kudoerCounts = {};
         recentActivities.forEach(activity => {
             if (activity.kudoers && Array.isArray(activity.kudoers)) {
                 activity.kudoers.forEach(kudoer => {
                     const key = `${kudoer.firstname} ${kudoer.lastname}`;
-                    recentKudoers.add(key);
-                });
-            }
-        });
-        
-        // Count total kudos across all 10 activities for people who gave kudos recently
-        const kudoerCounts = {};
-        allActivities.forEach(activity => {
-            if (activity.kudoers && Array.isArray(activity.kudoers)) {
-                activity.kudoers.forEach(kudoer => {
-                    const key = `${kudoer.firstname} ${kudoer.lastname}`;
-                    // Only count if they gave kudos in recent activities
-                    if (recentKudoers.has(key)) {
-                        kudoerCounts[key] = (kudoerCounts[key] || 0) + 1;
-                    }
+                    kudoerCounts[key] = (kudoerCounts[key] || 0) + 1;
                 });
             }
         });
 
-        // Sort by total frequency (highest first) and take top 10
+        // Sort by frequency (highest first) and take top 10
         const sortedKudoers = Object.entries(kudoerCounts)
             .sort(([,a], [,b]) => b - a)
+            .slice(0, 10);
 
         const container = document.getElementById('mostActiveKudoersContent');
         if (!container) return;
 
         if (sortedKudoers.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-600 mb-4">No kudoers found in recent activities</p>';
+            container.innerHTML = '<p class="text-gray-500 text-sm">No kudoers found in recent activities</p>';
             return;
         }
 
@@ -135,11 +119,52 @@ class KudosDashboard {
         
         sortedKudoers.forEach(([name, count], index) => {
             const medal = index < 3 ? ['🥇', '🥈', '🥉'][index] : '';
+            
+            // Get pattern data for this kudoer
+            const pattern = patterns.find(p => p.name === name);
+            let patternText = '';
+            
+            if (pattern && pattern.types) {
+                const topTypes = Object.entries(pattern.types)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 3)
+                    .map(([type, typeCount]) => `${type}(${typeCount})`)
+                    .join(', ');
+                patternText = topTypes ? ` • Prefers: ${topTypes}` : '';
+                
+                // Add distance pattern if available
+                if (pattern.avgDistance && pattern.minDistance !== Infinity) {
+                    const distanceRange = `${pattern.minDistance.toFixed(1)}-${pattern.maxDistance.toFixed(1)}km`;
+                    const avgDist = pattern.avgDistance.toFixed(1);
+                    patternText += ` • Distance: ${distanceRange} (avg: ${avgDist}km)`;
+                    
+                    // Detect distance threshold preferences
+                    const distanceThresholds = [1, 5, 10, 20, 50]; // km
+                    const distancePreferences = [];
+                    
+                    for (const threshold of distanceThresholds) {
+                        const aboveThreshold = pattern.distances.filter(dist => dist >= threshold).length;
+                        const percentage = (aboveThreshold / pattern.distances.length) * 100;
+                        
+                        if (percentage >= 80) { // If 80%+ of their kudos are above threshold
+                            distancePreferences.push(`≥${threshold}km`);
+                        }
+                    }
+                    
+                    if (distancePreferences.length > 0) {
+                        patternText += ` • Prefers: ${distancePreferences.join(', ')}`;
+                    }
+                }
+            }
+            
             html += `
                 <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div class="flex items-center space-x-3">
                         <span class="text-lg">${medal}</span>
-                        <span class="font-medium text-gray-900">${name}</span>
+                        <div>
+                            <span class="font-medium text-gray-900">${name}</span>
+                            <p class="text-xs text-gray-600">${count} kudo${count > 1 ? 's' : ''}${patternText}</p>
+                        </div>
                     </div>
                     <span class="text-sm font-semibold text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
                         ${count} kudo${count > 1 ? 's' : ''}

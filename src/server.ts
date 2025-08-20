@@ -26,7 +26,7 @@ async function start() {
         await server.register(healthRoutes, { prefix: '/health' });
 
         // Global error handler
-        server.setErrorHandler((error, request, reply) => {
+        server.setErrorHandler((error, _request, reply) => {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             console.error('Global error handler:', error);
             return reply.status(500).send({ error: 'Internal Server Error' });

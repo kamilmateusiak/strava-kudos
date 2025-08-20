@@ -169,60 +169,112 @@ export default async function stravaRoutes(fastify: FastifyInstance) {
     // Dashboard endpoint - get activities with kudoers
     fastify.get('/kudoers-dashboard', async (request, reply) => {
         try {
-            console.log('📊 Dashboard request received');
-            console.log('   Cookies header:', request.headers.cookie);
-            
             const refreshToken = getRefreshTokenFromCookies(request);
-            console.log('   Refresh token found:', refreshToken ? 'YES' : 'NO');
-            if (refreshToken) {
-                console.log('   Token preview:', refreshToken.substring(0, 10) + '...');
-            }
-            
             if (!refreshToken) {
-                console.log('❌ No refresh token found, returning 401');
                 return reply.status(401).send({ error: 'No refresh token found' });
             }
 
+            console.log('📊 Dashboard request received');
+            console.log('   Cookies header:', request.headers.cookie);
+            console.log('   Refresh token found:', refreshToken ? 'YES' : 'NO');
+            if (refreshToken) {
+                console.log('   Token preview:', refreshToken.substring(0, 20) + '...');
+            }
+
             console.log('📊 Fetching kudoers data for dashboard...');
-            
-            // Get user's last 10 activities
+
+            // Fetch user's last 10 activities
             const activities = await stravaService.makeAuthenticatedRequest<any[]>(
                 'https://www.strava.com/api/v3/athlete/activities?per_page=10',
                 refreshToken
             );
+
+            console.log(`✅ Found ${activities.length} activities`);
+
+            // Collect kudoers and analyze patterns
+            const kudoerPatterns = new Map<string, { 
+                count: number; 
+                activities: string[]; 
+                types: Map<string, number>;
+                distances: number[];
+                minDistance: number;
+                maxDistance: number;
+                avgDistance: number;
+            }>();
             
-            console.log('✅ Found', activities.length, 'activities');
-            
-            // For each activity, get the kudoers
-            const activitiesWithKudoers = [];
             for (const activity of activities) {
-                console.log('🏃 Checking kudoers for activity:', activity.name);
+                console.log(`🏃 Checking kudoers for activity: ${activity.name}`);
                 
                 try {
                     const kudoers = await stravaService.getActivityKudoers(refreshToken, activity.id);
-                    console.log('   💪 Found', kudoers.length, 'kudoers for', activity.name);
+                    console.log(`   💪 Found ${kudoers.length} kudoers for ${activity.name}`);
                     
-                    activitiesWithKudoers.push({
-                        ...activity,
-                        kudoers: kudoers || []
+                    // Add kudoers to activity
+                    activity.kudoers = kudoers;
+                    
+                    // Analyze each kudoer's pattern
+                    kudoers.forEach(kudoer => {
+                        const key = `${kudoer.firstname} ${kudoer.lastname}`;
+                        const activityType = activity.type;
+                        const distance = activity.distance / 1000; // Convert meters to kilometers
+                        
+                        if (!kudoerPatterns.has(key)) {
+                            kudoerPatterns.set(key, {
+                                count: 0,
+                                activities: [],
+                                types: new Map<string, number>(),
+                                distances: [],
+                                minDistance: Infinity,
+                                maxDistance: 0,
+                                avgDistance: 0
+                            });
+                        }
+                        
+                        const pattern = kudoerPatterns.get(key)!;
+                        pattern.count++;
+                        pattern.activities.push(activity.name);
+                        pattern.distances.push(distance);
+                        
+                        // Update distance stats
+                        pattern.minDistance = Math.min(pattern.minDistance, distance);
+                        pattern.maxDistance = Math.max(pattern.maxDistance, distance);
+                        
+                        // Count activity types
+                        const currentTypeCount = pattern.types.get(activityType) || 0;
+                        pattern.types.set(activityType, currentTypeCount + 1);
                     });
                     
                 } catch (error) {
-                    console.error('   ❌ Error fetching kudoers for activity', activity.name, ':', error);
-                    // Still include the activity, just with empty kudoers
-                    activitiesWithKudoers.push({
-                        ...activity,
-                        kudoers: []
-                    });
+                    console.error(`❌ Error getting kudoers for activity ${activity.name}:`, error);
+                    activity.kudoers = [];
                 }
             }
-            
-            console.log('📋 Returning', activitiesWithKudoers.length, 'activities with kudoers data');
-            
-            return reply.send({ activities: activitiesWithKudoers });
-            
+
+            // Calculate average distances and detect distance patterns
+            for (const [_name, pattern] of kudoerPatterns) {
+                pattern.avgDistance = pattern.distances.reduce((sum, dist) => sum + dist, 0) / pattern.distances.length;
+            }
+
+            // Convert Map to serializable format
+            const patternsData = Array.from(kudoerPatterns.entries()).map(([name, pattern]) => ({
+                name,
+                count: pattern.count,
+                activities: pattern.activities,
+                types: Object.fromEntries(pattern.types),
+                distances: pattern.distances,
+                minDistance: pattern.minDistance,
+                maxDistance: pattern.maxDistance,
+                avgDistance: pattern.avgDistance
+            }));
+
+            console.log('📋 Returning activities with kudoers and pattern data');
+            return {
+                activities: activities,
+                patterns: patternsData
+            };
+
         } catch (error) {
-            console.error('Error fetching dashboard data:', error);
+            console.error('❌ Error in kudoers-dashboard:', error);
             return reply.status(500).send({ error: 'Failed to fetch dashboard data' });
         }
     });

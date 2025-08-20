@@ -133,36 +133,108 @@ export class StravaService {
     }
 
     async pollForNewActivities(refreshToken: string): Promise<void> {
-        console.log('📊 Fetching kudoers data for dashboard...');
-        
         try {
-            // Get user's last 10 activities
+            console.log('🔄 Polling for new activities...');
+            
+            // Fetch user's last 10 activities
             const activities = await this.makeAuthenticatedRequest<StravaActivity[]>(
                 'https://www.strava.com/api/v3/athlete/activities?per_page=10',
                 refreshToken
             );
             
-            console.log('✅ Found', activities.length, 'activities');
+            console.log(`✅ Found ${activities.length} activities`);
             
-            // For each activity, get the kudoers
+            // Collect kudoers and analyze patterns
+            const kudoerPatterns = new Map<string, { 
+                count: number; 
+                activities: string[]; 
+                types: Map<string, number>;
+                distances: number[];
+                minDistance: number;
+                maxDistance: number;
+                avgDistance: number;
+            }>();
+            
             for (const activity of activities) {
-                console.log('🏃 Checking kudoers for activity:', activity.name);
+                console.log(`🏃 Checking kudoers for activity: ${activity.name}`);
                 
                 try {
                     const kudoers = await this.getActivityKudoers(refreshToken, activity.id);
-                    console.log('   💪 Found', kudoers.length, 'kudoers for', activity.name);
+                    console.log(`   💪 Found ${kudoers.length} kudoers for ${activity.name}`);
                     
-                    // Log kudoer details for debugging
+                    // Analyze each kudoer's pattern
                     kudoers.forEach(kudoer => {
-                        console.log('     👤', kudoer.firstname, kudoer.lastname);
+                        const key = `${kudoer.firstname} ${kudoer.lastname}`;
+                        const activityType = activity.type;
+                        const distance = activity.distance / 1000; // Convert meters to kilometers
+                        
+                        if (!kudoerPatterns.has(key)) {
+                            kudoerPatterns.set(key, {
+                                count: 0,
+                                activities: [],
+                                types: new Map<string, number>(),
+                                distances: [],
+                                minDistance: Infinity,
+                                maxDistance: 0,
+                                avgDistance: 0
+                            });
+                        }
+                        
+                        const pattern = kudoerPatterns.get(key)!;
+                        pattern.count++;
+                        pattern.activities.push(activity.name);
+                        pattern.distances.push(distance);
+                        
+                        // Update distance stats
+                        pattern.minDistance = Math.min(pattern.minDistance, distance);
+                        pattern.maxDistance = Math.max(pattern.maxDistance, distance);
+                        
+                        // Count activity types
+                        const currentTypeCount = pattern.types.get(activityType) || 0;
+                        pattern.types.set(activityType, currentTypeCount + 1);
                     });
                     
                 } catch (error) {
-                    console.error('   ❌ Error fetching kudoers for activity', activity.name, ':', error);
+                    console.error(`❌ Error getting kudoers for activity ${activity.name}:`, error);
                 }
             }
             
-            console.log('📋 Returning', activities.length, 'activities with kudoers data');
+            // Calculate average distances and detect distance patterns
+            for (const [name, pattern] of kudoerPatterns) {
+                pattern.avgDistance = pattern.distances.reduce((sum, dist) => sum + dist, 0) / pattern.distances.length;
+                
+                // Detect if they only give kudos to activities above certain thresholds
+                const distanceThresholds = [1, 5, 10, 20, 50]; // km
+                const distancePatterns = [];
+                
+                for (const threshold of distanceThresholds) {
+                    const aboveThreshold = pattern.distances.filter(dist => dist >= threshold).length;
+                    const percentage = (aboveThreshold / pattern.distances.length) * 100;
+                    
+                    if (percentage >= 80) { // If 80%+ of their kudos are above threshold
+                        distancePatterns.push(`≥${threshold}km`);
+                    }
+                }
+                
+                if (distancePatterns.length > 0) {
+                    console.log(`   ${name}: Distance preference - ${distancePatterns.join(', ')}`);
+                }
+            }
+            
+            // Log pattern analysis
+            console.log('📊 Kudoer Pattern Analysis:');
+            for (const [name, pattern] of kudoerPatterns) {
+                const topTypes = Array.from(pattern.types.entries())
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 3)
+                    .map(([type, count]) => `${type}(${count})`)
+                    .join(', ');
+                
+                const distanceRange = `${pattern.minDistance.toFixed(1)}-${pattern.maxDistance.toFixed(1)}km`;
+                const avgDist = pattern.avgDistance.toFixed(1);
+                
+                console.log(`   ${name}: ${pattern.count} kudos - Prefers: ${topTypes} | Distance: ${distanceRange} (avg: ${avgDist}km)`);
+            }
             
         } catch (error) {
             console.error('❌ Error polling for activities:', error);
