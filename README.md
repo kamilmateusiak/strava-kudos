@@ -42,19 +42,19 @@ After multiple pivots, we ended up with a **Strava Kudos Analytics Dashboard** -
 ### 🖼️ App Screenshots
 
 #### Dashboard Header & Stats
-![Dashboard Header and Stats](docs/header.png)
+![Dashboard Header and Stats](docs/header.jpg)
 *The main dashboard showing the header with logo, stats cards for Total Kudos and other metrics*
 
 #### Most Active Kudoers Section
-![Most Active Kudoers](docs/most-active.png)
+![Most Active Kudoers](docs/most-active.jpg)
 *The "Most Active Kudoers" section displaying people ranked by kudos frequency across recent activities*
 
 #### Activities & Kudoers List
-![Activities Section](docs/activities.png)
+![Activities Section](docs/activities.jpg)
 *Detailed view of activities with their respective kudoers, showing the last 10 activities*
 
 #### Loading State
-![Loading State](docs/loading-state.png)
+![Loading State](docs/loading-state.jpg)
 *Clean loading experience showing only the header and animated loader during data fetching*
 
 ### 🏛️ Architecture
