@@ -27,7 +27,7 @@ A **Strava Kudos Analytics Dashboard** with:
 *Kudoers ranked by frequency across recent activities*
 
 #### Most Active Kudoers with Pattern Analysis
-![Most Active Kudoers with Patterns](docs/most-active-patterns.jpg)
+![Most Active Kudoers with Patterns](docs/most-active-with-pattern.jpg)
 *Enhanced kudoers table showing activity type preferences and distance patterns*
 
 #### Activities & Kudoers List
