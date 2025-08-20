@@ -12,6 +12,7 @@ A **Strava Kudos Analytics Dashboard** with:
 - OAuth 2.0 authentication via Strava
 - Dashboard showing total kudos and activity metrics
 - "Most Active Kudoers" ranking (people who gave kudos in your last 5 activities, ranked by total kudos across all 10)
+- **Pattern Analysis**: Activity type preferences and distance-based insights for each kudoer
 - Activity breakdown with kudoer lists
 - Modern UI with Tailwind CSS
 
@@ -24,6 +25,10 @@ A **Strava Kudos Analytics Dashboard** with:
 #### Most Active Kudoers Section
 ![Most Active Kudoers](docs/most-active.jpg)
 *Kudoers ranked by frequency across recent activities*
+
+#### Most Active Kudoers with Pattern Analysis
+![Most Active Kudoers with Patterns](docs/most-active-patterns.jpg)
+*Enhanced kudoers table showing activity type preferences and distance patterns*
 
 #### Activities & Kudoers List
 ![Activities Section](docs/activities.jpg)
